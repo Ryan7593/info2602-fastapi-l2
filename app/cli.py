@@ -3,6 +3,7 @@ from app.database import create_db_and_tables, get_session, drop_all
 from app.models import User
 from fastapi import Depends
 from sqlmodel import select
+from sqlmodel import or_
 from sqlalchemy.exc import IntegrityError
 
 cli = typer.Typer()
@@ -21,28 +22,89 @@ def initialize():
 @cli.command()
 def get_user(username:str):
     # The code for task 5.1 goes here. Once implemented, remove the line below that says "pass"
-    pass
+    with get_session() as db: #gets a connection to the db
+        user = db.exec(select(User).where(User.username == username)).first()
+        if not user:
+            print(f'{username} not found!')
+            return
+        print(user)
 
 @cli.command()
 def get_all_users():
     # The code for task 5.2 goes here. Once implemented, remove the line below that says "pass"
-    pass
+    with get_session() as db:
+        all_users = db.exec(select(User)).all()
+        if not all_users:
+            print("No users found")
+        else:
+            for user in all_users:
+                print(user)
 
 
 @cli.command()
 def change_email(username: str, new_email:str):
     # The code for task 6 goes here. Once implemented, remove the line below that says "pass"
-    pass
+    with get_session() as db:
+        user = db.exec(select(User).where(User.username == username)).first()
+        if not user:
+            print(f'{username} not found! Unable to update email')
+            return
+        user.email = new_email
+        db.add(user)
+        db.commit()
+        print(f"Updated {user.username}'s email to {user.email}")
 
 @cli.command()
 def create_user(username: str, email:str, password: str):
     # The code for task 7 goes here. Once implemented, remove the line below that says "pass"
-    pass
+    with get_session() as db:
+        newuser = User(username, email, password)
+        try:
+            db.add(newuser)
+            db.commit()
+        except IntegrityError as e:
+            db.rollback() 
+            print(e.orig)
+            print("Username or email already taken")
+        else:
+            print(newuser)
 
 @cli.command()
 def delete_user(username: str):
     # The code for task 8 goes here. Once implemented, remove the line below that says "pass"
-    pass
+    with get_session() as db:
+        user = db.exec(select(User).where(User.username == username)).first()
+        if not user:
+            print(f"{username} not found! Unable to dleete user")
+            return
+        db.delete(user)
+        db.commit()
+        print(f"{username} deleted!")
+        
+@cli.command()
+def find_user(search: str):
+    with get_session() as db:
+        found = db.exec(select(User).where(or_(User.username.ilike(f"%{search}%"), User.email.ilike(f"%{search}%")))).all()
+
+        if not found:
+            print("No users Found")
+            return
+        
+        print(f"Users found: {len(found)}")
+        for user in found:
+            print(user)
+
+@cli.command()
+def list(offset: int, limit: int):
+    with get_session() as db:
+        result = db.exec(select(User).offset(offset).limit(limit)).all()
+
+        if not result:
+            print("No users found!")
+            return
+        
+        for user in result:
+            print(user)
 
 
 if __name__ == "__main__":
